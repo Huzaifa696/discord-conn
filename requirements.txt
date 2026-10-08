@@ -1,0 +1,15 @@
+# Core dependencies
+requests>=2.31.0
+urllib3>=2.0.7
+aiohttp>=3.9.0
+python-dotenv>=1.0.0
+pyyaml>=6.0.1
+rich>=13.7.0
+click>=8.1.7
+
+# Google Gemini SDK
+google-genai>=0.1.1
+google-generativeai>=0.8.0
+
+# Optional WebSocket client for real-time gateway events
+websockets>=12.0

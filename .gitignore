@@ -1,0 +1,36 @@
+# Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Environment files & credentials
+.env
+.env.*
+!.env.example
+
+# Database files
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Reports generated at runtime
+reports/*.md
+
+# IDE and OS files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test & coverage caches
+.pytest_cache/
+.coverage
+htmlcov/

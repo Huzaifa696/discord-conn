@@ -1,0 +1,42 @@
+# Discord Connector Configuration
+
+discord:
+  # Base API URL
+  api_base_url: "https://discord.com/api/v10"
+  # Safety delays between requests (in seconds) to avoid rate limiting
+  request_delay_seconds: 1.0
+  # Maximum messages to sync per channel fetch cycle
+  max_messages_per_sync: 200
+  # Custom User-Agent mimicking a modern browser client
+  user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+
+ai:
+  # Gemini model to use for summarization and drafting
+  model: "gemini-2.5-flash"
+  # Fallback model if the primary is unavailable
+  fallback_model: "gemini-1.5-flash"
+  temperature: 0.3
+  max_output_tokens: 4096
+
+pipeline:
+  # Session gap: minutes of inactivity before splitting conversation clusters
+  session_gap_minutes: 30
+  # Filter out bot commands starting with these prefixes
+  bot_prefixes: ["!", "/", "$", "?", "-", ".", ">"]
+  # Prune repetitive spam messages
+  prune_repeated_messages: true
+  # Token limit to pack into context window before summarization
+  max_context_tokens: 50000
+
+# Channels/Guilds you want to monitor and summarize regularly
+watched_channels:
+  # Example configuration:
+  # - guild_id: "123456789012345678"
+  #   channel_id: "987654321098765432"
+  #   name: "general"
+  #   summary_interval_hours: 24
+
+output:
+  reports_dir: "reports"
+  save_markdown: true
+  print_terminal: true
