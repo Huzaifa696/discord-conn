@@ -23,7 +23,10 @@ class ReplyDrafter:
             api_key=self.cfg.gemini_api_key,
             model_name=self.cfg.ai_model,
             fallback_model=self.cfg.ai_fallback_model,
+            fallback_candidates=self.cfg.ai_fallback_candidates,
             temperature=0.5,
+            max_retries_per_model=self.cfg.ai_max_retries,
+            retry_delay_seconds=self.cfg.ai_retry_delay,
         )
         self.context_builder = context_builder or ContextBuilder()
 

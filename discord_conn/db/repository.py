@@ -98,6 +98,10 @@ class Repository:
         channel_id = str(msg_data["channel_id"])
         msg_id = str(msg_data["id"])
         guild_id = str(msg_data.get("guild_id")) if msg_data.get("guild_id") else None
+        if not guild_id:
+            ch_row = self.conn.execute("SELECT guild_id FROM channels WHERE id = ?", (channel_id,)).fetchone()
+            if ch_row and ch_row["guild_id"]:
+                guild_id = str(ch_row["guild_id"])
         author_id = str(author.get("id", "0"))
         content = msg_data.get("content", "")
         created_at = msg_data.get("timestamp")
@@ -200,6 +204,62 @@ class Repository:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
 
+    def get_messages_for_guild(
+        self,
+        guild_id: str,
+        since_iso: Optional[str] = None,
+        until_iso: Optional[str] = None,
+        limit: int = 1000,
+        order_asc: bool = True,
+    ) -> List[Dict[str, Any]]:
+        """Fetch messages across all channels for a guild with author and channel information joined."""
+        query = """
+            SELECT 
+                m.id, m.channel_id, m.guild_id, m.author_id, m.content, m.created_at, m.edited_at,
+                m.reply_to_id, m.thread_id, m.attachments_json, m.reactions_json, m.mentions_json, m.is_pinned,
+                u.username, u.global_name, u.is_bot,
+                COALESCE(c.name, m.channel_id) as channel_name
+            FROM messages m
+            JOIN users u ON m.author_id = u.id
+            LEFT JOIN channels c ON m.channel_id = c.id
+            WHERE (m.guild_id = ? OR c.guild_id = ?)
+        """
+        params: List[Any] = [str(guild_id), str(guild_id)]
+
+        if since_iso:
+            query += " AND m.created_at >= ?"
+            params.append(since_iso)
+
+        if until_iso:
+            query += " AND m.created_at <= ?"
+            params.append(until_iso)
+
+        query += " ORDER BY m.created_at " + ("ASC" if order_asc else "DESC")
+        query += " LIMIT ?"
+        params.append(limit)
+
+        cursor = self.conn.cursor()
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    def get_guild(self, guild_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch single guild record by ID."""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM guilds WHERE id = ?", (str(guild_id),))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def get_channel(self, channel_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch single channel record by ID with joined guild name."""
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT c.*, g.name as guild_name FROM channels c LEFT JOIN guilds g ON c.guild_id = g.id WHERE c.id = ?",
+            (str(channel_id),),
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
     def get_message_by_id(self, message_id: str) -> Optional[Dict[str, Any]]:
         query = """
             SELECT 
@@ -281,10 +341,10 @@ class Repository:
 
     def save_summary(
         self,
-        channel_id: str,
-        window_start: str,
-        window_end: str,
-        summary_markdown: str,
+        channel_id: Optional[str] = None,
+        window_start: str = "",
+        window_end: str = "",
+        summary_markdown: str = "",
         channel_name: Optional[str] = None,
         guild_id: Optional[str] = None,
         message_count: int = 0,
@@ -301,7 +361,7 @@ class Repository:
                 """,
                 (
                     guild_id,
-                    str(channel_id),
+                    str(channel_id) if channel_id else None,
                     channel_name,
                     window_start,
                     window_end,

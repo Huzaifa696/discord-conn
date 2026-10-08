@@ -81,7 +81,7 @@ class TestRepository(unittest.TestCase):
             summary_markdown="## Test Summary\nAll tasks completed.",
             channel_name="general",
             message_count=10,
-            model_used="gemini-2.5-flash",
+            model_used="gemini-3.8-flash",
         )
         self.assertGreater(summary_id, 0)
 
@@ -89,6 +89,21 @@ class TestRepository(unittest.TestCase):
         self.assertIsNotNone(latest)
         self.assertEqual(latest["message_count"], 10)
         self.assertIn("All tasks completed", latest["summary_markdown"])
+
+    def test_get_messages_for_guild(self):
+        self.repo.upsert_guild("guild_1", "Test Guild")
+        self.repo.upsert_channel("chan_1", "general", guild_id="guild_1")
+        self.repo.upsert_channel("chan_2", "random", guild_id="guild_1")
+
+        self.repo.upsert_messages_batch([
+            {"id": "m1", "channel_id": "chan_1", "content": "hello c1", "timestamp": "2026-10-08T10:00:00Z", "author": {"id": "u1", "username": "alice"}},
+            {"id": "m2", "channel_id": "chan_2", "content": "hello c2", "timestamp": "2026-10-08T11:00:00Z", "author": {"id": "u2", "username": "bob"}},
+        ])
+
+        guild_msgs = self.repo.get_messages_for_guild("guild_1")
+        self.assertEqual(len(guild_msgs), 2)
+        channel_names = {m["channel_name"] for m in guild_msgs}
+        self.assertEqual(channel_names, {"general", "random"})
 
 
 if __name__ == "__main__":

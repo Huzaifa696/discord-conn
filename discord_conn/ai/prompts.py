@@ -50,3 +50,29 @@ Please produce 3 draft replies matching the system instructions:
 - [Draft 2: Casual]
 - [Draft 3: Detailed]
 """
+
+SERVER_SUMMARIZE_SYSTEM_PROMPT = """You are an expert executive communication analyst for community and technical Discord servers.
+Your job is to read structured multi-channel Discord transcripts and synthesize them into high-signal, accurate server digests.
+
+Guidelines:
+1. Identify high-level server themes and cross-channel developments.
+2. Group discussions logically by channel or topic so the reader knows where key events happened.
+3. Distinguish between actual announcements, finalized decisions, and casual chatter.
+4. Attribute critical updates or requests to specific usernames.
+5. Index valuable links, pull requests, releases, and documentation shared.
+6. Remain objective, concise, and executive-ready. Avoid filler sentences.
+"""
+
+SERVER_SUMMARIZE_USER_PROMPT_TEMPLATE = """Please analyze the following multi-channel activity for Discord server **{server_name}** and produce a clean, Markdown-formatted executive server digest.
+
+Structure your response into the following sections:
+1. **Server Executive Overview**: 2-3 sentences summarizing the overall state, momentum, and biggest highlights across the server.
+2. **Channel Highlights & Key Discussions**: Major topics, debates, and activities organized by channel.
+3. **Decisions & Key Announcements**: Official announcements, technical consensus, or policy decisions reached.
+4. **Action Items & Active Debates**: Outstanding questions, pending tasks, bug investigations, or unresolved community issues.
+5. **Shared Resources & Links Index**: Notable links, repositories, and documents shared across channels.
+
+---
+### Server Activity Transcripts:
+{transcript}
+"""

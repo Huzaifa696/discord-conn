@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE TABLE IF NOT EXISTS summaries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     guild_id TEXT,
-    channel_id TEXT NOT NULL,
+    channel_id TEXT,
     channel_name TEXT,
     window_start TIMESTAMP NOT NULL,
     window_end TIMESTAMP NOT NULL,
@@ -65,7 +65,8 @@ CREATE TABLE IF NOT EXISTS summaries (
     model_used TEXT,
     summary_markdown TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE
+    FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE,
+    FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS sync_state (
@@ -83,6 +84,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_reply_to ON messages(reply_to_id);
 CREATE INDEX IF NOT EXISTS idx_messages_thread_id ON messages(thread_id);
 CREATE INDEX IF NOT EXISTS idx_messages_author ON messages(author_id);
 CREATE INDEX IF NOT EXISTS idx_summaries_channel ON summaries(channel_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_summaries_guild ON summaries(guild_id, created_at);
 """
 
 
@@ -94,4 +96,15 @@ def init_db(db_path: Union[str, Path]) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     with conn:
         conn.executescript(SCHEMA_SQL)
+        # Migrate summaries if channel_id has NOT NULL
+        cursor = conn.execute("PRAGMA table_info(summaries)")
+        columns = {row["name"]: dict(row) for row in cursor.fetchall()}
+        if columns.get("channel_id", {}).get("notnull") == 1:
+            conn.execute("ALTER TABLE summaries RENAME TO summaries_old")
+            conn.executescript(SCHEMA_SQL)
+            conn.execute("""
+                INSERT INTO summaries (id, guild_id, channel_id, channel_name, window_start, window_end, message_count, model_used, summary_markdown, created_at)
+                SELECT id, guild_id, channel_id, channel_name, window_start, window_end, message_count, model_used, summary_markdown, created_at FROM summaries_old
+            """)
+            conn.execute("DROP TABLE summaries_old")
     return conn

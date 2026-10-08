@@ -8,7 +8,7 @@ A high-performance Discord connector that syncs server channels, cleans message 
 
 - **Zero-AI Data Pipeline**: Ingestion, deduplication, SQLite indexing, bot command filtering, mention resolution, and conversation thread reconstruction are done entirely without LLMs, saving tokens and compute.
 - **Deep Context Understanding**: Clusters messages into temporal conversation sessions and reconstructs full reply trees (`parent -> child replies`) so the AI sees true conversational structure rather than a flat stream.
-- **AI Interpretation Layer**: Uses Google Gemini (`gemini-2.5-flash` / `gemini-1.5-flash`) to generate structured summaries:
+- **AI Interpretation Layer**: Uses Google Gemini (`gemini-3.8-flash` / `gemini-flash-latest`) to generate structured summaries:
   - Executive Takeaways
   - Key Topics & Discussions (referencing specific reply threads)
   - Finalized Decisions & Consensus
@@ -25,14 +25,16 @@ A high-performance Discord connector that syncs server channels, cleans message 
 - [Prerequisites & Installation](#prerequisites--installation)
 - [Configuration](#configuration)
   - [Environment Variables (`.env`)](#environment-variables-env)
+    - [How to Obtain Discord User Token](#how-to-obtain-discord-user-token)
+    - [How to Obtain Google Gemini API Key](#how-to-obtain-google-gemini-api-key)
   - [Application Settings (`config/config.yaml`)](#application-settings-configconfigyaml)
 - [CLI Usage Guide](#cli-usage-guide)
   - [1. Authentication Check (`auth-check`)](#1-authentication-check-auth-check)
   - [2. List Servers (`servers`)](#2-list-servers-servers)
   - [3. List Channels (`channels`)](#3-list-channels-channels)
-  - [4. Sync Message History (`sync`)](#4-sync-message-history-sync)
+  - [4. Sync Message History (`sync` / `sync-server`)](#4-sync-message-history-sync--sync-server)
   - [5. View Recent Conversation Flow (`recent`)](#5-view-recent-conversation-flow-recent)
-  - [6. Generate AI Executive Summary (`summarize`)](#6-generate-ai-executive-summary-summarize)
+  - [6. Generate AI Executive Summary (`summarize` / `summarize-server`)](#6-generate-ai-executive-summary-summarize--summarize-server)
   - [7. Draft & Send Replies (`reply`)](#7-draft--send-replies-reply)
   - [8. Run Scheduled Background Daemon (`daemon`)](#8-run-scheduled-background-daemon-daemon)
 - [Testing](#testing)
@@ -76,8 +78,8 @@ python run.py summarize <CHANNEL_ID> --hours 24
 ## Prerequisites & Installation
 
 - **Python**: 3.10 or higher
-- **Discord User Token**: Required for accessing Discord channels.
-- **Google Gemini API Key**: Free API key available at [Google AI Studio](https://aistudio.google.com/).
+- **Discord User Token**: Required for accessing Discord channels. Obtainable from [Discord Web](https://discord.com/app) (see [instructions below](#how-to-obtain-discord-user-token)).
+- **Google Gemini API Key**: Free API key available at [Google AI Studio](https://aistudio.google.com/app/apikey) (see [instructions below](#how-to-obtain-google-gemini-api-key)).
 
 ### Installation Steps
 
@@ -120,12 +122,44 @@ Configure the following variables in `.env`:
 > [!WARNING]
 > Keep your `DISCORD_USER_TOKEN` and `GEMINI_API_KEY` strictly private. Never commit `.env` or share your tokens publicly.
 
-#### How to obtain your Discord User Token
-1. Open Discord in your web browser (Chrome/Firefox/Edge).
-2. Press `F12` or `Ctrl+Shift+I` (Mac: `Cmd+Opt+I`) to open Developer Tools.
-3. Switch to the **Network** tab and filter by `/api`.
-4. Click on any channel or message in Discord to generate network activity.
-5. Inspect any `v9` or `v10` request (e.g. `messages` or `@me`) and copy the value of the `Authorization` header.
+#### How to Obtain Discord User Token
+
+A Discord User Token allows the connector to authenticate requests as your account to read channels and post replies.
+
+1. Open **[Discord Web](https://discord.com/app)** ([https://discord.com/app](https://discord.com/app)) in your web browser (Chrome, Firefox, Edge, or Brave) and sign in.
+2. Open Developer Tools:
+   - **Windows / Linux**: Press `F12` or `Ctrl + Shift + I`
+   - **macOS**: Press `Cmd + Option + I`
+3. Switch to the **Network** tab in Developer Tools.
+4. In the filter box, type `/api` (or `messages`).
+5. Click on any channel or message in Discord to generate API traffic.
+6. Click on any request in the list (such as `@me` or a `messages` request).
+7. Under the **Headers** tab, scroll to **Request Headers**.
+8. Find the **`Authorization`** header and copy its value (without quotes).
+9. Paste it into your `.env` file:
+   ```env
+   DISCORD_USER_TOKEN=your_token_here
+   ```
+
+> [!CAUTION]
+> Your Discord token gives direct access to your account. **Never share it publicly or commit it to a repository.**
+
+#### How to Obtain Google Gemini API Key
+
+The Gemini API key enables AI summarization, thread analysis, and reply drafting.
+
+1. Visit **[Google AI Studio API Keys](https://aistudio.google.com/app/apikey)** ([https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)).
+2. Sign in with your Google account.
+3. Click **"Create API key"** (or **"Get API key"**).
+4. Select an existing project or create a new Google Cloud project.
+5. Copy your newly created API key.
+6. Paste it into your `.env` file:
+   ```env
+   GEMINI_API_KEY=your_api_key_here
+   ```
+
+> [!TIP]
+> Google AI Studio offers a free tier for Gemini models (`gemini-3.8-flash` / `gemini-flash-latest`), which is plenty for daily summaries and chat digests.
 
 ### Application Settings (`config/config.yaml`)
 
@@ -139,8 +173,8 @@ discord:
   user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 
 ai:
-  model: "gemini-2.5-flash"        # Primary Gemini model
-  fallback_model: "gemini-1.5-flash" # Fallback if primary is unavailable
+  model: "gemini-3.8-flash"        # Primary Gemini model
+  fallback_model: "gemini-flash-latest" # Fallback if primary is unavailable
   temperature: 0.3
   max_output_tokens: 4096
 
@@ -232,21 +266,37 @@ python run.py channels 112233445566778899
 
 ---
 
-### 4. Sync Message History (`sync`)
+### 4. Sync Message History (`sync` / `sync-server`)
 
-Fetches recent message history for a channel, runs deterministic cleaning (filtering bot triggers, resolving user mentions, stripping spam), and stores them in SQLite.
+Fetches message history for a channel or an entire server, runs deterministic cleaning (filtering bot triggers, resolving user mentions, stripping spam), and stores them in SQLite.
 
 ```bash
+# Sync a single channel
 python run.py sync <CHANNEL_ID> [OPTIONS]
+
+# Sync multiple active channels across an entire server
+python run.py sync-server <GUILD_ID> [OPTIONS]
+# or simply:
+python run.py sync <GUILD_ID>
 ```
 
-**Options:**
-- `--max-messages`, `-m`: Maximum number of messages to sync (default: `200`).
+**Options for `sync`:**
+- `--max-messages`, `-m`: Maximum messages to fetch per channel (default: `200`).
+- `--channels`, `-c`: Number of top active channels to sync if targeting a server (default: `5`).
+- `--server`, `-s`: Force treat the ID as a server (guild) ID.
 
-**Example:**
+**Options for `sync-server`:**
+- `--channels`, `-c`: Number of top active channels to sync (default: `5`).
+- `--max-messages`, `-m`: Maximum messages to sync per channel (default: `100`).
+- `--all-channels`: Sync all accessible text channels in the server.
+
+**Examples:**
 ```bash
-# Sync up to 500 messages
+# Sync 500 messages from a specific channel
 python run.py sync 234567890123456789 --max-messages 500
+
+# Sync the top 5 most active channels in a server
+python run.py sync-server 428295358100013066 --channels 5 --max-messages 100
 ```
 
 ---
@@ -274,33 +324,47 @@ python run.py recent 234567890123456789 --limit 30
 
 ---
 
-### 6. Generate AI Executive Summary (`summarize`)
+### 6. Generate AI Executive Summary (`summarize` / `summarize-server`)
 
-Synthesizes channel activity using Google Gemini to produce a structured, actionable executive digest.
+Synthesizes channel or whole-server activity using Google Gemini to produce a structured, actionable executive digest.
 
 ```bash
-python run.py summarize <CHANNEL_ID> [OPTIONS]
+# Summarize a channel or whole server (auto-detected)
+python run.py summarize <CHANNEL_OR_SERVER_ID> [OPTIONS]
+
+# Explicit server-wide summarization across all synced channels
+python run.py summarize-server <GUILD_ID> [OPTIONS]
 ```
 
 **Options:**
-- `--hours`, `-h`: Number of hours of history to summarize (default: `24`).
-- `--limit`, `-l`: Maximum messages to analyze from that timeframe (default: `500`).
+- `--all`, `-a`: **Summarize the whole channel or server across all time** (no 24-hour restriction).
+- `--hours`, `-h`: Number of hours of history to summarize (default: `24`). Pass `0` to summarize all history.
+- `--limit`, `-l`: Maximum messages to analyze (default: `500` for channel, `1000` for server).
+- `--server`, `-s`: Force treat the target as a server ID.
 
-**Example:**
+**Examples:**
 ```bash
-# Summarize the past 48 hours of discussion
-python run.py summarize 234567890123456789 --hours 48
+# Summarize the past 24 hours of a channel
+python run.py summarize 234567890123456789 --hours 24
+
+# Summarize the WHOLE channel across its entire history
+python run.py summarize 234567890123456789 --all
+
+# Summarize the WHOLE server across all synced channels
+python run.py summarize 428295358100013066 --all
+# or
+python run.py summarize-server 428295358100013066 --all
 ```
 
 **Report Sections Included:**
-1. **Executive Summary**: High-level snapshot of key themes and milestones.
-2. **Key Discussions & Reply Threads**: Chronological breakdown referencing specific participants and reply chains.
+1. **Executive Summary / Server Overview**: High-level snapshot of key themes and milestones.
+2. **Key Discussions / Channel Highlights**: Organized breakdown referencing specific channels, participants, and reply chains.
 3. **Decisions & Consensus**: Agreed resolutions and confirmed outcomes.
-4. **Action Items & Open Questions**: Outstanding bugs, tasks, and inquiries awaiting answers.
+4. **Action Items & Active Debates**: Outstanding bugs, tasks, and inquiries awaiting answers.
 5. **Shared Links & Resources**: Curated index of GitHub PRs, documentation, and external links.
 
 > [!NOTE]
-> Summaries are rendered in terminal with rich Markdown styling and saved to `reports/digest_<channel>_<timestamp>.md`.
+> Summaries are rendered in terminal with rich Markdown styling and saved to `reports/digest_<target>_<timestamp>.md`.
 
 ---
 

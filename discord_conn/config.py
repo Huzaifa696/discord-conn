@@ -73,11 +73,26 @@ class Config:
 
     @property
     def ai_model(self) -> str:
-        return self._raw_yaml.get("ai", {}).get("model", "gemini-2.5-flash")
+        return self._raw_yaml.get("ai", {}).get("model", "gemini-3.8-flash")
 
     @property
     def ai_fallback_model(self) -> str:
-        return self._raw_yaml.get("ai", {}).get("fallback_model", "gemini-1.5-flash")
+        return self._raw_yaml.get("ai", {}).get("fallback_model", "gemini-3.7-flash")
+
+    @property
+    def ai_fallback_candidates(self) -> List[str]:
+        cfg_candidates = self._raw_yaml.get("ai", {}).get("fallback_candidates")
+        if cfg_candidates and isinstance(cfg_candidates, list):
+            return [str(m).strip() for m in cfg_candidates if m]
+        return ["gemini-3.7-flash", "gemini-3.5-flash", "gemini-flash-latest"]
+
+    @property
+    def ai_max_retries(self) -> int:
+        return int(self._raw_yaml.get("ai", {}).get("max_retries", 2))
+
+    @property
+    def ai_retry_delay(self) -> float:
+        return float(self._raw_yaml.get("ai", {}).get("retry_delay_seconds", 2.0))
 
     @property
     def ai_temperature(self) -> float:

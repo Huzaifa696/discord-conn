@@ -12,9 +12,17 @@ discord:
 
 ai:
   # Gemini model to use for summarization and drafting
-  model: "gemini-2.5-flash"
+  model: "gemini-3.8-flash"
   # Fallback model if the primary is unavailable
-  fallback_model: "gemini-1.5-flash"
+  fallback_model: "gemini-3.7-flash"
+  # Additional fallback models tried sequentially if primary/secondary hit demand spikes
+  fallback_candidates:
+    - "gemini-3.7-flash"
+    - "gemini-3.5-flash"
+    - "gemini-flash-latest"
+  # Automatic retries with exponential backoff on temporary 503 / 429 rate limit spikes
+  max_retries: 2
+  retry_delay_seconds: 2.0
   temperature: 0.3
   max_output_tokens: 4096
 

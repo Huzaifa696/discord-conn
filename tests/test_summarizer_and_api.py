@@ -73,8 +73,8 @@ class TestSummarizerEndToEnd(unittest.TestCase):
 
         # Config mock
         self.mock_cfg = MagicMock(spec=Config)
-        self.mock_cfg.ai_model = "gemini-2.5-flash"
-        self.mock_cfg.ai_fallback_model = "gemini-1.5-flash"
+        self.mock_cfg.ai_model = "gemini-3.8-flash"
+        self.mock_cfg.ai_fallback_model = "gemini-flash-latest"
         self.mock_cfg.ai_temperature = 0.3
         self.mock_cfg.max_context_tokens = 50000
         self.mock_cfg.reports_dir = self.reports_path
@@ -127,6 +127,61 @@ class TestSummarizerEndToEnd(unittest.TestCase):
         db_summary = self.repo.get_latest_summary("chan_1")
         self.assertIsNotNone(db_summary)
         self.assertEqual(db_summary["message_count"], 2)
+
+    def test_summarize_channel_all_time(self):
+        self.repo.upsert_channel("chan_old", "archive")
+        self.repo.upsert_messages_batch([
+            {
+                "id": "old_1",
+                "channel_id": "chan_old",
+                "content": "Message from months ago.",
+                "timestamp": "2025-01-01T00:00:00Z",
+                "author": {"id": "u1", "username": "alice"},
+            }
+        ])
+
+        summarizer = Summarizer(
+            repository=self.repo,
+            gemini_client=self.mock_gemini,
+            cfg=self.mock_cfg,
+        )
+
+        result = summarizer.summarize_channel("chan_old", all_time=True)
+        self.assertTrue(result["success"])
+        self.assertEqual(result["message_count"], 1)
+
+    def test_summarize_server(self):
+        self.repo.upsert_guild("guild_1", "Engineering Guild")
+        self.repo.upsert_channel("c1", "frontend", guild_id="guild_1")
+        self.repo.upsert_channel("c2", "backend", guild_id="guild_1")
+        self.repo.upsert_messages_batch([
+            {
+                "id": "m1",
+                "channel_id": "c1",
+                "content": "UI migration done.",
+                "timestamp": "2026-10-08T10:00:00Z",
+                "author": {"id": "u1", "username": "alice"},
+            },
+            {
+                "id": "m2",
+                "channel_id": "c2",
+                "content": "API endpoints updated.",
+                "timestamp": "2026-10-08T10:30:00Z",
+                "author": {"id": "u2", "username": "bob"},
+            },
+        ])
+
+        summarizer = Summarizer(
+            repository=self.repo,
+            gemini_client=self.mock_gemini,
+            cfg=self.mock_cfg,
+        )
+
+        result = summarizer.summarize_server("guild_1", all_time=True)
+        self.assertTrue(result["success"])
+        self.assertEqual(result["message_count"], 2)
+        self.assertEqual(result["channel_count"], 2)
+        self.assertTrue(Path(result["report_path"]).exists())
 
 
 if __name__ == "__main__":
